@@ -154,24 +154,6 @@ Item {
     onTriggered: root.refresh()
   }
 
-  readonly property color pillColor: bar ? bar.foreground : "white"
-
-  Rectangle {
-    id: pill
-    anchors.fill: parent
-    radius: Math.min(6, height / 2)
-    color: popup.open
-      ? Qt.rgba(root.pillColor.r, root.pillColor.g, root.pillColor.b, 0.18)
-      : (hoverArea.containsMouse ? Qt.rgba(root.pillColor.r, root.pillColor.g, root.pillColor.b, 0.10) : "transparent")
-    border.width: 1
-    border.color: (popup.open || hoverArea.containsMouse)
-      ? Qt.rgba(root.pillColor.r, root.pillColor.g, root.pillColor.b, 0.35)
-      : "transparent"
-
-    Behavior on color { ColorAnimation { duration: 120 } }
-    Behavior on border.color { ColorAnimation { duration: 120 } }
-  }
-
   Row {
     id: row
     anchors.centerIn: parent
@@ -197,9 +179,7 @@ Item {
   }
 
   MouseArea {
-    id: hoverArea
     anchors.fill: parent
-    hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
     onClicked: root.toggle()
   }
