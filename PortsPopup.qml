@@ -24,6 +24,7 @@ PopupWindow {
   readonly property var anchorWindow: anchorItem ? anchorItem.QsWindow.window : null
   readonly property color fg: bar ? bar.foreground : "white"
   readonly property color bg: bar ? bar.background : "#1e1e2e"
+  readonly property color urgent: bar ? bar.urgent : "#dc2626"
   readonly property string fontFamily: bar ? bar.fontFamily : "monospace"
 
   readonly property int margin: 10
@@ -202,7 +203,7 @@ PopupWindow {
                   height: 6
                   radius: 3
                   anchors.verticalCenter: parent.verticalCenter
-                  color: modelData.proto === "tcp" ? "#4ade80" : "#60a5fa"
+                  color: modelData.proto === "tcp" ? root.fg : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.5)
                 }
 
                 Column {
@@ -221,7 +222,7 @@ PopupWindow {
                     text: rowDelegate.errored
                       ? root.errorText
                       : (modelData.process ? modelData.process + " · pid " + modelData.pid : "unknown process")
-                    color: rowDelegate.errored ? "#f87171" : Qt.darker(root.fg, 1.3)
+                    color: rowDelegate.errored ? root.urgent : Qt.darker(root.fg, 1.3)
                     font.family: root.fontFamily
                     font.pixelSize: 10
                     elide: Text.ElideRight
@@ -240,14 +241,14 @@ PopupWindow {
                 radius: 6
                 visible: modelData.pid > 0
                 color: rowDelegate.armed
-                  ? "#dc2626"
-                  : (killArea.containsMouse ? Qt.rgba(0.9, 0.3, 0.3, 0.25) : Qt.rgba(0.9, 0.3, 0.3, 0.12))
+                  ? root.urgent
+                  : Qt.rgba(root.urgent.r, root.urgent.g, root.urgent.b, killArea.containsMouse ? 0.25 : 0.12)
 
                 Text {
                   id: killLabel
                   anchors.centerIn: parent
                   text: rowDelegate.busy ? "…" : (rowDelegate.armed ? "Confirm" : "Kill")
-                  color: rowDelegate.armed ? "white" : "#f87171"
+                  color: rowDelegate.armed ? root.bg : root.urgent
                   font.family: root.fontFamily
                   font.pixelSize: 11
                   font.bold: true
