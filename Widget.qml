@@ -14,6 +14,15 @@ Item {
   implicitWidth: row.implicitWidth + 14
   implicitHeight: bar ? bar.barSize : 26
 
+  // A theme's own foreground/background pair should already contrast, but
+  // not every theme tunes bar.text for a light bar.background. Fall back to
+  // a fixed dark tone when the bar itself is light, so the icon stays
+  // legible even against an under-specified light theme.
+  function luminance(c) { return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b }
+  readonly property color iconColor: bar
+    ? (luminance(bar.background) > 0.6 ? "#1a1a1a" : bar.foreground)
+    : "white"
+
   property var ports: []
   property string armedKey: ""
   property string busyKey: ""
@@ -167,7 +176,7 @@ Item {
 
     Text {
       text: ""
-      color: bar ? bar.foreground : "white"
+      color: root.iconColor
       font.family: bar ? bar.fontFamily : "monospace"
       font.pixelSize: 14
       anchors.verticalCenter: parent.verticalCenter
@@ -176,7 +185,7 @@ Item {
     Text {
       visible: root.ports.length > 0
       text: String(root.ports.length)
-      color: bar ? bar.foreground : "white"
+      color: root.iconColor
       font.family: bar ? bar.fontFamily : "monospace"
       font.pixelSize: 11
       font.bold: true

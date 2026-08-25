@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Hyprland
+import qs.Commons
 
 // Floating popup listing local listening ports. Loaded implicitly as a
 // sibling type by Widget.qml (same-directory QML files need no import).
@@ -22,9 +23,20 @@ PopupWindow {
 
   readonly property var coordinatorKey: owner || root
   readonly property var anchorWindow: anchorItem ? anchorItem.QsWindow.window : null
-  readonly property color fg: bar ? bar.foreground : "white"
-  readonly property color bg: bar ? bar.background : "#1e1e2e"
-  readonly property color urgent: bar ? bar.urgent : "#dc2626"
+  // Same surface tokens the first-party panels (bluetooth, network, agents)
+  // use, so this popup shifts with the active Omarchy theme like they do.
+  readonly property color bg: Color.popups.background
+  readonly property color borderColor: Color.popups.border
+  readonly property color accent: Color.accent
+  readonly property color muted: Color.muted
+  readonly property color urgent: Color.urgent
+
+  // Guards against themes that don't tune popups.text for a light
+  // popups.background -- falls back to a fixed dark tone instead of
+  // trusting a theme-supplied light-on-light pairing.
+  function luminance(c) { return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b }
+  readonly property color fg: luminance(bg) > 0.6 ? "#1a1a1a" : Color.popups.text
+  readonly property color safeMuted: luminance(bg) > 0.6 ? "#5a5a5a" : Color.muted
   readonly property string fontFamily: bar ? bar.fontFamily : "monospace"
 
   readonly property int margin: 10
@@ -96,7 +108,7 @@ PopupWindow {
     anchors.fill: parent
     radius: 0
     color: root.bg
-    border.color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.55)
+    border.color: root.borderColor
     border.width: 2
     opacity: root.open ? 1 : 0
 
@@ -153,7 +165,7 @@ PopupWindow {
       Text {
         visible: root.ports.length === 0
         text: "No listening ports found"
-        color: Qt.darker(root.fg, 1.3)
+        color: root.safeMuted
         font.family: root.fontFamily
         font.pixelSize: 12
       }
@@ -181,7 +193,7 @@ PopupWindow {
               width: listCol.width
               height: 44
               radius: 8
-              color: rowHover.hovered ? Qt.lighter(root.bg, 1.25) : "transparent"
+              color: rowHover.hovered ? Style.hoverFillFor(root.fg, root.accent, root.urgent) : "transparent"
 
               readonly property string rowKey: modelData.proto + ":" + modelData.port + ":" + modelData.pid
               readonly property bool armed: root.armedKey === rowKey
@@ -203,7 +215,7 @@ PopupWindow {
                   height: 6
                   radius: 3
                   anchors.verticalCenter: parent.verticalCenter
-                  color: modelData.proto === "tcp" ? root.fg : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.5)
+                  color: modelData.proto === "tcp" ? root.accent : root.safeMuted
                 }
 
                 Column {
@@ -222,7 +234,7 @@ PopupWindow {
                     text: rowDelegate.errored
                       ? root.errorText
                       : (modelData.process ? modelData.process + " · pid " + modelData.pid : "unknown process")
-                    color: rowDelegate.errored ? root.urgent : Qt.darker(root.fg, 1.3)
+                    color: rowDelegate.errored ? root.urgent : root.safeMuted
                     font.family: root.fontFamily
                     font.pixelSize: 10
                     elide: Text.ElideRight
