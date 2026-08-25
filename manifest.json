@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "zeru.portwatch",
+  "name": "Port Watch",
+  "version": "1.0.0",
+  "author": "zeru",
+  "description": "Shows local listening ports/dev servers in the bar with a popup to stop them",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Widget.qml"
+  },
+  "barWidget": {
+    "displayName": "Port Watch",
+    "description": "Listening ports and dev servers, with a one-click stop",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
