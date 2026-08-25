@@ -32,6 +32,12 @@ Item {
     else open()
   }
 
+  // Lets the bar's own click/drag dispatcher (modulePointer in Bar.qml)
+  // recognize this widget as clickable, which is also what makes it show a
+  // pointer cursor on hover — it only does that for targets with this
+  // function, same interface first-party widgets implement via WidgetButton.
+  function triggerPress(button) { root.toggle() }
+
   IpcHandler {
     target: "zeru.portwatch"
 
@@ -176,12 +182,6 @@ Item {
       font.bold: true
       anchors.verticalCenter: parent.verticalCenter
     }
-  }
-
-  MouseArea {
-    anchors.fill: parent
-    cursorShape: Qt.PointingHandCursor
-    onClicked: root.toggle()
   }
 
   PortsPopup {

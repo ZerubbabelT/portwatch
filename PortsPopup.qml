@@ -93,7 +93,7 @@ PopupWindow {
   Rectangle {
     id: card
     anchors.fill: parent
-    radius: 12
+    radius: 0
     color: root.bg
     border.color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.55)
     border.width: 2
