@@ -2,8 +2,6 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 
-// Bar widget: shows a plug icon + live count of local listening ports.
-// Click opens PortsPopup.qml with the full list and a stop button per row.
 Item {
   id: root
 
@@ -14,16 +12,19 @@ Item {
   implicitWidth: row.implicitWidth + 14
   implicitHeight: bar ? bar.barSize : 26
 
-  // A theme's own foreground/background pair should already contrast, but
-  // not every theme tunes bar.text for a light bar.background. Fall back to
-  // a fixed dark tone when the bar itself is light, so the icon stays
-  // legible even against an under-specified light theme.
+  // Not every theme tunes bar.text for a light bar.background, so fall back
+  // to a fixed dark tone rather than trust it blindly.
   function luminance(c) { return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b }
   readonly property color iconColor: bar
     ? (luminance(bar.background) > 0.6 ? "#1a1a1a" : bar.foreground)
     : "white"
 
   property var ports: []
+  // appPorts is only ever set from a real Hyprland window match (see isApp
+  // below), never guessed from the process name.
+  readonly property var ownPorts: root.ports.filter(function(p) { return p.pid > 0 && !p.isApp })
+  readonly property var appPorts: root.ports.filter(function(p) { return p.pid > 0 && p.isApp })
+  readonly property var systemPorts: root.ports.filter(function(p) { return p.pid === 0 })
   property string armedKey: ""
   property string busyKey: ""
   property string errorKey: ""
@@ -41,10 +42,8 @@ Item {
     else open()
   }
 
-  // Lets the bar's own click/drag dispatcher (modulePointer in Bar.qml)
-  // recognize this widget as clickable, which is also what makes it show a
-  // pointer cursor on hover — it only does that for targets with this
-  // function, same interface first-party widgets implement via WidgetButton.
+  // The bar's own click/drag dispatcher only shows a pointer cursor and
+  // routes clicks to widgets that expose this function (see WidgetButton).
   function triggerPress(button) { root.toggle() }
 
   IpcHandler {
@@ -79,7 +78,61 @@ Item {
     killProc.running = true
   }
 
-  function parsePorts(text) {
+  // One round-trip: ss for the port/pid list, hyprctl clients -j for the
+  // pid -> window map, and a per-pid /proc read for cmdline + cwd.
+  readonly property string scanScript: [
+    "ss -H -tulpn",
+    "echo '===WIN==='",
+    "hyprctl clients -j 2>/dev/null",
+    "echo '===PROC==='",
+    "for pid in $(ss -H -tulpn 2>/dev/null | grep -oP 'pid=\\K[0-9]+' | sort -u); do",
+    "  cmd=$(tr '\\0' ' ' < /proc/$pid/cmdline 2>/dev/null)",
+    "  cwd=$(readlink -f /proc/$pid/cwd 2>/dev/null)",
+    "  echo \"$pid<|>$cwd<|>$cmd\"",
+    "done"
+  ].join("\n")
+
+  function parseWindowInfo(jsonText) {
+    var map = ({})
+    try {
+      var clients = JSON.parse(jsonText || "[]")
+      for (var i = 0; i < clients.length; i++) {
+        var c = clients[i]
+        if (c && c.pid && !(c.pid in map)) map[c.pid] = { klass: c.class || "" }
+      }
+    } catch (e) {}
+    return map
+  }
+
+  function parseProcInfo(procText) {
+    var map = ({})
+    var lines = procText.split("\n")
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i]
+      if (!line) continue
+      var parts = line.split("<|>")
+      if (parts.length < 3) continue
+      map[parts[0]] = { cwd: parts[1], cmd: parts.slice(2).join("<|>") }
+    }
+    return map
+  }
+
+  function buildLabel(process, pid, win) {
+    if (win) return (win.klass || process || "app") + " · pid " + pid
+    return process ? process + " · pid " + pid : "unknown process"
+  }
+
+  // Empty when /proc couldn't be read (permission, or the process exited).
+  function buildDetail(proc) {
+    if (!proc || !proc.cwd) return ""
+    var parts = proc.cwd.split("/").filter(function(s) { return s.length > 0 })
+    var base = parts.length ? parts[parts.length - 1] : proc.cwd
+    var cmd = (proc.cmd || "").trim().replace(/\s+/g, " ")
+    if (cmd.length > 48) cmd = cmd.slice(0, 48) + "…"
+    return cmd ? base + " — " + cmd : ""
+  }
+
+  function parsePorts(text, windowInfo, procInfo) {
     var lines = text.split("\n")
     var seen = ({})
     var out = []
@@ -112,7 +165,13 @@ Item {
       if (seen[key]) continue
       seen[key] = true
 
-      out.push({ proto: proto, port: port, address: address, process: process, pid: pid })
+      var win = pid > 0 ? windowInfo[pid] : undefined
+      var proc = pid > 0 ? procInfo[pid] : undefined
+      var isApp = !!win
+      var label = root.buildLabel(process, pid, win)
+      var detail = root.buildDetail(proc)
+
+      out.push({ proto: proto, port: port, address: address, process: process, pid: pid, isApp: isApp, label: label, detail: detail })
     }
 
     out.sort(function(a, b) { return a.port - b.port })
@@ -121,10 +180,22 @@ Item {
 
   Process {
     id: scanProc
-    command: ["ss", "-H", "-tulpn"]
+    command: ["bash", "-c", root.scanScript]
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.ports = root.parsePorts(text)
+      onStreamFinished: {
+        var winMarker = "\n===WIN===\n"
+        var procMarker = "\n===PROC===\n"
+        var winIdx = text.indexOf(winMarker)
+        var procIdx = text.indexOf(procMarker)
+        var ssText = winIdx >= 0 ? text.slice(0, winIdx) : text
+        var winText = (winIdx >= 0 && procIdx >= 0) ? text.slice(winIdx + winMarker.length, procIdx) : ""
+        var procText = procIdx >= 0 ? text.slice(procIdx + procMarker.length) : ""
+
+        var windowInfo = root.parseWindowInfo(winText)
+        var procInfo = root.parseProcInfo(procText)
+        root.ports = root.parsePorts(ssText, windowInfo, procInfo)
+      }
     }
   }
 
@@ -183,8 +254,8 @@ Item {
     }
 
     Text {
-      visible: root.ports.length > 0
-      text: String(root.ports.length)
+      visible: root.ownPorts.length > 0
+      text: String(root.ownPorts.length)
       color: root.iconColor
       font.family: bar ? bar.fontFamily : "monospace"
       font.pixelSize: 11
@@ -198,7 +269,9 @@ Item {
     anchorItem: root
     bar: root.bar
     owner: root
-    ports: root.ports
+    ownPorts: root.ownPorts
+    appPorts: root.appPorts
+    systemPorts: root.systemPorts
     armedKey: root.armedKey
     busyKey: root.busyKey
     errorKey: root.errorKey

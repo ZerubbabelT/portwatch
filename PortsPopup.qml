@@ -3,8 +3,6 @@ import Quickshell
 import Quickshell.Hyprland
 import qs.Commons
 
-// Floating popup listing local listening ports. Loaded implicitly as a
-// sibling type by Widget.qml (same-directory QML files need no import).
 PopupWindow {
   id: root
 
@@ -12,7 +10,11 @@ PopupWindow {
   required property QtObject bar
   property var owner: null
   property bool open: false
-  property var ports: []
+  property var ownPorts: []
+  property var appPorts: []
+  property var systemPorts: []
+  property bool appsExpanded: false
+  property bool systemExpanded: false
   property string armedKey: ""
   property string busyKey: ""
   property string errorKey: ""
@@ -23,17 +25,12 @@ PopupWindow {
 
   readonly property var coordinatorKey: owner || root
   readonly property var anchorWindow: anchorItem ? anchorItem.QsWindow.window : null
-  // Same surface tokens the first-party panels (bluetooth, network, agents)
-  // use, so this popup shifts with the active Omarchy theme like they do.
   readonly property color bg: Color.popups.background
   readonly property color borderColor: Color.popups.border
   readonly property color accent: Color.accent
   readonly property color muted: Color.muted
   readonly property color urgent: Color.urgent
 
-  // Guards against themes that don't tune popups.text for a light
-  // popups.background -- falls back to a fixed dark tone instead of
-  // trusting a theme-supplied light-on-light pairing.
   function luminance(c) { return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b }
   readonly property color fg: luminance(bg) > 0.6 ? "#1a1a1a" : Color.popups.text
   readonly property color safeMuted: luminance(bg) > 0.6 ? "#5a5a5a" : Color.muted
@@ -42,8 +39,8 @@ PopupWindow {
   readonly property int margin: 10
   readonly property int cardPadding: 12
 
-  implicitWidth: 340
-  implicitHeight: Math.min(420, Math.max(120, content.implicitHeight + cardPadding * 2))
+  implicitWidth: 380
+  implicitHeight: Math.min(460, Math.max(120, content.implicitHeight + cardPadding * 2))
 
   visible: open || card.opacity > 0
   color: "transparent"
@@ -145,7 +142,7 @@ PopupWindow {
 
           Text {
             anchors.centerIn: parent
-            text: ""
+            text: ""
             color: root.fg
             font.family: root.fontFamily
             font.pixelSize: 13
@@ -163,8 +160,8 @@ PopupWindow {
       }
 
       Text {
-        visible: root.ports.length === 0
-        text: "No listening ports found"
+        visible: root.ownPorts.length === 0
+        text: "Nothing you're running right now"
         color: root.safeMuted
         font.family: root.fontFamily
         font.pixelSize: 12
@@ -185,99 +182,178 @@ PopupWindow {
           spacing: 6
 
           Repeater {
-            model: root.ports
+            model: root.ownPorts
+            delegate: PortRow { width: listCol.width }
+          }
 
-            delegate: Rectangle {
-              id: rowDelegate
-              required property var modelData
-              width: listCol.width
-              height: 44
-              radius: 8
-              color: rowHover.hovered ? Style.hoverFillFor(root.fg, root.accent, root.urgent) : "transparent"
+          SectionToggle {
+            width: listCol.width
+            label: "Apps"
+            count: root.appPorts.length
+            expanded: root.appsExpanded
+            onToggled: root.appsExpanded = !root.appsExpanded
+          }
 
-              readonly property string rowKey: modelData.proto + ":" + modelData.port + ":" + modelData.pid
-              readonly property bool armed: root.armedKey === rowKey
-              readonly property bool busy: root.busyKey === rowKey
-              readonly property bool errored: root.errorKey === rowKey
+          Repeater {
+            model: root.appsExpanded ? root.appPorts : []
+            delegate: PortRow { width: listCol.width }
+          }
 
-              HoverHandler { id: rowHover }
+          SectionToggle {
+            width: listCol.width
+            label: "System"
+            count: root.systemPorts.length
+            expanded: root.systemExpanded
+            onToggled: root.systemExpanded = !root.systemExpanded
+          }
 
-              Row {
-                anchors.left: parent.left
-                anchors.leftMargin: 8
-                anchors.right: killBtn.left
-                anchors.rightMargin: 8
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 8
-
-                Rectangle {
-                  width: 6
-                  height: 6
-                  radius: 3
-                  anchors.verticalCenter: parent.verticalCenter
-                  color: modelData.proto === "tcp" ? root.accent : root.safeMuted
-                }
-
-                Column {
-                  spacing: 1
-                  width: 220
-
-                  Text {
-                    text: ":" + modelData.port
-                    color: root.fg
-                    font.family: root.fontFamily
-                    font.pixelSize: 13
-                    font.bold: true
-                  }
-
-                  Text {
-                    text: rowDelegate.errored
-                      ? root.errorText
-                      : (modelData.process ? modelData.process + " · pid " + modelData.pid : "unknown process")
-                    color: rowDelegate.errored ? root.urgent : root.safeMuted
-                    font.family: root.fontFamily
-                    font.pixelSize: 10
-                    elide: Text.ElideRight
-                    width: parent.width
-                  }
-                }
-              }
-
-              Rectangle {
-                id: killBtn
-                anchors.right: parent.right
-                anchors.rightMargin: 6
-                anchors.verticalCenter: parent.verticalCenter
-                width: killLabel.implicitWidth + 16
-                height: 24
-                radius: 6
-                visible: modelData.pid > 0
-                color: rowDelegate.armed
-                  ? root.urgent
-                  : Qt.rgba(root.urgent.r, root.urgent.g, root.urgent.b, killArea.containsMouse ? 0.25 : 0.12)
-
-                Text {
-                  id: killLabel
-                  anchors.centerIn: parent
-                  text: rowDelegate.busy ? "…" : (rowDelegate.armed ? "Confirm" : "Kill")
-                  color: rowDelegate.armed ? root.bg : root.urgent
-                  font.family: root.fontFamily
-                  font.pixelSize: 11
-                  font.bold: true
-                }
-
-                MouseArea {
-                  id: killArea
-                  anchors.fill: parent
-                  hoverEnabled: true
-                  cursorShape: Qt.PointingHandCursor
-                  enabled: !rowDelegate.busy
-                  onClicked: root.killRequested(rowDelegate.modelData)
-                }
-              }
-            }
+          Repeater {
+            model: root.systemExpanded ? root.systemPorts : []
+            delegate: PortRow { width: listCol.width }
           }
         }
+      }
+    }
+  }
+
+  component SectionToggle: Item {
+    id: toggle
+    required property string label
+    required property int count
+    required property bool expanded
+    signal toggled()
+
+    height: toggleRow.implicitHeight + 4
+    visible: count > 0
+
+    Row {
+      id: toggleRow
+      anchors.left: parent.left
+      anchors.verticalCenter: parent.verticalCenter
+      spacing: 6
+
+      Text {
+        text: toggle.expanded ? "▾" : "▸"
+        color: root.safeMuted
+        font.family: root.fontFamily
+        font.pixelSize: 10
+        anchors.verticalCenter: parent.verticalCenter
+      }
+
+      Text {
+        text: toggle.label + " (" + toggle.count + ")"
+        color: root.safeMuted
+        font.family: root.fontFamily
+        font.pixelSize: 11
+        font.bold: true
+        anchors.verticalCenter: parent.verticalCenter
+      }
+    }
+
+    MouseArea {
+      anchors.fill: parent
+      cursorShape: Qt.PointingHandCursor
+      onClicked: toggle.toggled()
+    }
+  }
+
+  component PortRow: Rectangle {
+    id: rowDelegate
+    required property var modelData
+    readonly property bool hasDetail: modelData.detail !== ""
+    height: hasDetail ? 56 : 44
+    radius: 8
+    color: rowHover.hovered ? Style.hoverFillFor(root.fg, root.accent, root.urgent) : "transparent"
+
+    readonly property string rowKey: modelData.proto + ":" + modelData.port + ":" + modelData.pid
+    readonly property bool armed: root.armedKey === rowKey
+    readonly property bool busy: root.busyKey === rowKey
+    readonly property bool errored: root.errorKey === rowKey
+
+    HoverHandler { id: rowHover }
+
+    Row {
+      anchors.left: parent.left
+      anchors.leftMargin: 8
+      anchors.right: killBtn.left
+      anchors.rightMargin: 8
+      anchors.top: parent.top
+      anchors.topMargin: 6
+      spacing: 8
+
+      Rectangle {
+        width: 6
+        height: 6
+        radius: 3
+        anchors.top: parent.top
+        anchors.topMargin: 4
+        color: modelData.proto === "tcp" ? root.accent : root.safeMuted
+      }
+
+      Column {
+        spacing: 1
+        width: 260
+
+        Text {
+          text: ":" + modelData.port
+          color: root.fg
+          font.family: root.fontFamily
+          font.pixelSize: 13
+          font.bold: true
+        }
+
+        Text {
+          text: rowDelegate.errored ? root.errorText : modelData.label
+          color: rowDelegate.errored ? root.urgent : root.safeMuted
+          font.family: root.fontFamily
+          font.pixelSize: 10
+          elide: Text.ElideRight
+          width: parent.width
+        }
+
+        Text {
+          visible: rowDelegate.hasDetail
+          text: modelData.detail
+          color: root.safeMuted
+          opacity: 0.7
+          font.family: root.fontFamily
+          font.pixelSize: 9
+          elide: Text.ElideMiddle
+          width: parent.width
+        }
+      }
+    }
+
+    Rectangle {
+      id: killBtn
+      anchors.right: parent.right
+      anchors.rightMargin: 6
+      anchors.verticalCenter: parent.verticalCenter
+      width: killLabel.implicitWidth + 16
+      height: 24
+      radius: 6
+      visible: modelData.pid > 0
+      color: rowDelegate.armed
+        ? root.urgent
+        : Qt.rgba(root.urgent.r, root.urgent.g, root.urgent.b, killArea.containsMouse ? 0.25 : 0.12)
+
+      Text {
+        id: killLabel
+        anchors.centerIn: parent
+        text: rowDelegate.busy ? "…" : (rowDelegate.armed ? "Confirm" : "Kill")
+        color: rowDelegate.armed ? root.bg : root.urgent
+        font.family: root.fontFamily
+        font.pixelSize: 11
+        font.bold: true
+      }
+
+      MouseArea {
+        id: killArea
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        enabled: !rowDelegate.busy
+        onClicked: root.killRequested(rowDelegate.modelData)
       }
     }
   }
