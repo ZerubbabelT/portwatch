@@ -3,7 +3,7 @@
   "id": "zeru.portwatch",
   "name": "Port Watch",
   "version": "1.0.0",
-  "author": "zeru",
+  "author": "ZerubbabelT",
   "description": "Shows local listening ports/dev servers in the bar with a popup to stop them",
   "kinds": [
     "bar-widget"

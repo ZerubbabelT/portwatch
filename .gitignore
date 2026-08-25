@@ -1,0 +1,5 @@
+*.qmlc
+.qmlls.ini
+*.swp
+*~
+.DS_Store

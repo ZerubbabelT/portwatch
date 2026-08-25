@@ -9,8 +9,12 @@ Item {
   property string moduleName
   property var settings
 
-  implicitWidth: row.implicitWidth + 14
-  implicitHeight: bar ? bar.barSize : 26
+  // Bar.qml forces a vertical widget's slot width to bar.barSize regardless
+  // of implicitWidth, so the cross-axis must follow bar.vertical the same
+  // way BarIconButton's fixedWidth/fixedHeight do, or content gets clipped.
+  readonly property bool vertical: bar ? bar.vertical : false
+  implicitWidth: vertical ? (bar ? bar.barSize : 26) : row.implicitWidth + 14
+  implicitHeight: vertical ? row.implicitHeight + 10 : (bar ? bar.barSize : 26)
 
   // Not every theme tunes bar.text for a light bar.background, so fall back
   // to a fixed dark tone rather than trust it blindly.
@@ -240,17 +244,19 @@ Item {
     onTriggered: root.refresh()
   }
 
-  Row {
+  Grid {
     id: row
     anchors.centerIn: parent
-    spacing: 4
+    columns: root.vertical ? 1 : 2
+    rowSpacing: 2
+    columnSpacing: 4
 
     Text {
       text: ""
       color: root.iconColor
       font.family: bar ? bar.fontFamily : "monospace"
       font.pixelSize: 14
-      anchors.verticalCenter: parent.verticalCenter
+      horizontalAlignment: Text.AlignHCenter
     }
 
     Text {
@@ -260,7 +266,7 @@ Item {
       font.family: bar ? bar.fontFamily : "monospace"
       font.pixelSize: 11
       font.bold: true
-      anchors.verticalCenter: parent.verticalCenter
+      horizontalAlignment: Text.AlignHCenter
     }
   }
 
