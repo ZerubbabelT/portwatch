@@ -85,11 +85,12 @@ Item {
   // One round-trip: ss for the port/pid list, hyprctl clients -j for the
   // pid -> window map, and a per-pid /proc read for cmdline + cwd.
   readonly property string scanScript: [
-    "ss -H -tulpn",
+    "ports=$(ss -H -tulpn 2>/dev/null)",
+    "printf '%s\\n' \"$ports\"",
     "echo '===WIN==='",
     "hyprctl clients -j 2>/dev/null",
     "echo '===PROC==='",
-    "for pid in $(ss -H -tulpn 2>/dev/null | grep -oP 'pid=\\K[0-9]+' | sort -u); do",
+    "for pid in $(printf '%s\\n' \"$ports\" | grep -oP 'pid=\\K[0-9]+' | sort -u); do",
     "  cmd=$(tr '\\0' ' ' < /proc/$pid/cmdline 2>/dev/null)",
     "  cwd=$(readlink -f /proc/$pid/cwd 2>/dev/null)",
     "  echo \"$pid<|>$cwd<|>$cmd\"",
