@@ -26,6 +26,20 @@ omarchy-shell shell rescanPlugins
 omarchy plugin enable zeru.portwatch
 ```
 
+## Uninstall
+
+```
+omarchy plugin remove zeru.portwatch
+```
+
+Or by hand:
+
+```
+omarchy plugin disable zeru.portwatch
+rm -rf ~/.config/omarchy/plugins/zeru.portwatch
+omarchy-shell shell rescanPlugins
+```
+
 ## Requirements
 
 - Omarchy on Hyprland
@@ -34,3 +48,7 @@ omarchy plugin enable zeru.portwatch
 ## How it works
 
 One `ss -tulpn` scan for ports, `hyprctl clients -j` to tell real windowed apps apart from headless processes, and a `/proc/<pid>` read for the exact command and working directory. No polling beyond a 15s background refresh (3s while the popup is open), no sudo, no network calls.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
