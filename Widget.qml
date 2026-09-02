@@ -76,25 +76,69 @@ Item {
 
     armTimer.stop()
     root.armedKey = ""
+
+    // Without a start time there is nothing to pin the pid to, so decline
+    // rather than signal a pid that may since have been reused.
+    if (!p.startTime) {
+      root.errorKey = key
+      root.errorText = "Couldn't verify process; refresh"
+      errorTimer.restart()
+      root.refresh()
+      return
+    }
+
     root.busyKey = key
     killProc.targetKey = key
-    killProc.command = ["kill", "-TERM", String(p.pid)]
+    killProc.command = ["/usr/bin/bash", "-c", root.killScript,
+                        "portwatch-kill", String(p.pid), String(p.startTime)]
     killProc.running = true
   }
 
   // One round-trip: ss for the port/pid list, hyprctl clients -j for the
-  // pid -> window map, and a per-pid /proc read for cmdline + cwd.
+  // pid -> window map, and a per-pid /proc read for start time, cmdline, cwd.
+  // Absolute paths throughout so a poisoned PATH can't substitute any of it.
+  // StdioCollector has no size cap of its own, so the whole thing is piped
+  // through head -c; a runaway producer gets SIGPIPE'd instead of growing
+  // the collector's buffer without bound. The two commands that can block on
+  // something outside this process (a socket dump on a busy host, a wedged
+  // Hyprland IPC socket) each carry their own hard deadline, so the script
+  // always reaches its end and never leaves a child behind for the watchdog
+  // to have to clean up.
   readonly property string scanScript: [
-    "ports=$(ss -H -tulpn 2>/dev/null)",
+    "{",
+    "ports=$(/usr/bin/timeout -s KILL 5 /usr/bin/ss -H -tulpn 2>/dev/null | /usr/bin/head -n 500)",
     "printf '%s\\n' \"$ports\"",
     "echo '===WIN==='",
-    "hyprctl clients -j 2>/dev/null",
+    "/usr/bin/timeout -s KILL 5 /usr/bin/hyprctl clients -j 2>/dev/null",
     "echo '===PROC==='",
-    "for pid in $(printf '%s\\n' \"$ports\" | grep -oP 'pid=\\K[0-9]+' | sort -u); do",
-    "  cmd=$(tr '\\0' ' ' < /proc/$pid/cmdline 2>/dev/null)",
-    "  cwd=$(readlink -f /proc/$pid/cwd 2>/dev/null)",
-    "  echo \"$pid<|>$cwd<|>$cmd\"",
-    "done"
+    "for pid in $(printf '%s\\n' \"$ports\" | /usr/bin/grep -oP 'pid=\\K[0-9]+' | /usr/bin/sort -u | /usr/bin/head -n 300); do",
+    "  cmd=$(/usr/bin/cat /proc/$pid/cmdline 2>/dev/null | /usr/bin/tr '\\0' ' ' | /usr/bin/head -c 200)",
+    "  cwd=$(/usr/bin/readlink -f /proc/$pid/cwd 2>/dev/null | /usr/bin/head -c 200)",
+    // Field 22 of /proc/PID/stat is the process start time in clock ticks.
+    // It is fixed for the life of the process, so (pid, starttime) survives
+    // PID reuse where the pid alone does not. Everything up to the last
+    // ') ' is dropped first because comm may itself contain spaces and
+    // parens, which would otherwise shift the field numbering.
+    "  st=$(/usr/bin/cat /proc/$pid/stat 2>/dev/null)",
+    "  st=${st##*') '}",
+    "  start=$(printf '%s' \"$st\" | /usr/bin/cut -d' ' -f20)",
+    "  echo \"$pid<|>$start<|>$cwd<|>$cmd\"",
+    "done",
+    "} | /usr/bin/head -c 1000000"
+  ].join("\n")
+
+  // Re-reads the start time and refuses to signal unless it still matches the
+  // one shown in the row that was confirmed. Exit 3 = process already gone,
+  // 4 = pid was reused by an unrelated process, anything else = kill failed.
+  readonly property string killScript: [
+    "p=$1",
+    "want=$2",
+    "s=$(/usr/bin/cat /proc/$p/stat 2>/dev/null) || exit 3",
+    "s=${s##*') '}",
+    "got=$(printf '%s' \"$s\" | /usr/bin/cut -d' ' -f20)",
+    "[ -n \"$got\" ] || exit 3",
+    "[ \"$got\" = \"$want\" ] || exit 4",
+    "kill -TERM \"$p\""
   ].join("\n")
 
   function parseWindowInfo(jsonText) {
@@ -116,33 +160,41 @@ Item {
       var line = lines[i]
       if (!line) continue
       var parts = line.split("<|>")
-      if (parts.length < 3) continue
-      map[parts[0]] = { cwd: parts[1], cmd: parts.slice(2).join("<|>") }
+      if (parts.length < 4) continue
+      map[parts[0]] = { start: parts[1], cwd: parts[2], cmd: parts.slice(3).join("<|>") }
     }
     return map
   }
 
+  // Every string below originates outside this widget (window classes, comm
+  // names, cwds, cmdlines), so each is clamped before it reaches a delegate.
+  function clamp(str, n) {
+    var v = String(str || "")
+    return v.length > n ? v.slice(0, n) + "…" : v
+  }
+
   function buildLabel(process, pid, win) {
-    if (win) return (win.klass || process || "app") + " · pid " + pid
-    return process ? process + " · pid " + pid : "unknown process"
+    if (win) return root.clamp(win.klass || process || "app", 64) + " · pid " + pid
+    return process ? root.clamp(process, 64) + " · pid " + pid : "unknown process"
   }
 
   // Empty when /proc couldn't be read (permission, or the process exited).
   function buildDetail(proc) {
     if (!proc || !proc.cwd) return ""
     var parts = proc.cwd.split("/").filter(function(s) { return s.length > 0 })
-    var base = parts.length ? parts[parts.length - 1] : proc.cwd
-    var cmd = (proc.cmd || "").trim().replace(/\s+/g, " ")
-    if (cmd.length > 48) cmd = cmd.slice(0, 48) + "…"
+    var base = root.clamp(parts.length ? parts[parts.length - 1] : proc.cwd, 40)
+    var cmd = root.clamp((proc.cmd || "").trim().replace(/\s+/g, " "), 48)
     return cmd ? base + " — " + cmd : ""
   }
+
+  readonly property int maxRows: 200
 
   function parsePorts(text, windowInfo, procInfo) {
     var lines = text.split("\n")
     var seen = ({})
     var out = []
 
-    for (var i = 0; i < lines.length; i++) {
+    for (var i = 0; i < lines.length && out.length < root.maxRows; i++) {
       var line = lines[i].trim()
       if (!line) continue
 
@@ -176,16 +228,31 @@ Item {
       var label = root.buildLabel(process, pid, win)
       var detail = root.buildDetail(proc)
 
-      out.push({ proto: proto, port: port, address: address, process: process, pid: pid, isApp: isApp, label: label, detail: detail })
+      out.push({ proto: proto, port: port, address: address, process: process, pid: pid,
+                 startTime: proc ? (proc.start || "") : "", isApp: isApp, label: label, detail: detail })
     }
 
     out.sort(function(a, b) { return a.port - b.port })
     return out
   }
 
+  // A wedged hyprctl or ss would otherwise leave scanProc.running true
+  // forever, and refresh() would silently no-op from then on. A full scan at
+  // the 200-pid cap measures ~1.6s, so 10s is generous headroom for a loaded
+  // machine while still landing inside the 15s idle refresh interval.
+  Timer {
+    id: scanWatchdog
+    interval: 10000
+    onTriggered: if (scanProc.running) scanProc.running = false
+  }
+
   Process {
     id: scanProc
-    command: ["bash", "-c", root.scanScript]
+    command: ["/usr/bin/bash", "-c", root.scanScript]
+    onRunningChanged: {
+      if (running) scanWatchdog.restart()
+      else scanWatchdog.stop()
+    }
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
@@ -204,14 +271,29 @@ Item {
     }
   }
 
+  // requestKill early-returns while killProc is running and busyKey is only
+  // cleared on exit, so a wedged kill would disable every row's button for
+  // the rest of the session.
+  Timer {
+    id: killWatchdog
+    interval: 5000
+    onTriggered: if (killProc.running) killProc.running = false
+  }
+
   Process {
     id: killProc
     property string targetKey: ""
+    onRunningChanged: {
+      if (running) killWatchdog.restart()
+      else killWatchdog.stop()
+    }
     onExited: function(exitCode) {
       root.busyKey = ""
       if (exitCode !== 0) {
         root.errorKey = targetKey
-        root.errorText = "Couldn't stop it (permission?)"
+        root.errorText = exitCode === 3 ? "Already gone"
+          : exitCode === 4 ? "Process changed; refreshed"
+          : "Couldn't stop it (permission?)"
         errorTimer.restart()
       }
       root.refresh()

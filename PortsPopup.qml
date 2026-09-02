@@ -296,14 +296,19 @@ PopupWindow {
 
         Text {
           text: ":" + modelData.port
+          textFormat: Text.PlainText
           color: root.fg
           font.family: root.fontFamily
           font.pixelSize: 13
           font.bold: true
         }
 
+        // Process names, window classes and cmdlines are foreign text; the
+        // Text default is AutoText, which would render markup in them as
+        // rich text (<img> included).
         Text {
           text: rowDelegate.errored ? root.errorText : modelData.label
+          textFormat: Text.PlainText
           color: rowDelegate.errored ? root.urgent : root.safeMuted
           font.family: root.fontFamily
           font.pixelSize: 10
@@ -314,6 +319,7 @@ PopupWindow {
         Text {
           visible: rowDelegate.hasDetail
           text: modelData.detail
+          textFormat: Text.PlainText
           color: root.safeMuted
           opacity: 0.7
           font.family: root.fontFamily
