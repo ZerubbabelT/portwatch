@@ -64,6 +64,31 @@ Item {
     if (!scanProc.running) scanProc.running = true
   }
 
+  // Wildcard and loopback binds are reachable as localhost; a listener bound
+  // to one specific address has to be visited at that address.
+  function hostFor(address) {
+    var a = String(address || "")
+    if (a === "" || a === "*" || a === "0.0.0.0" || a === "[::]" || a === "::"
+        || a === "127.0.0.1" || a === "[::1]" || a === "::1") return "localhost"
+    // Anything else is only used verbatim when it looks like a plain host or
+    // bracketed literal; an interface-scoped or otherwise odd address from ss
+    // would make an unopenable url, so fall back to localhost.
+    return /^[A-Za-z0-9.\-]+$|^\[[0-9A-Fa-f:.]+\]$/.test(a) ? a : "localhost"
+  }
+
+  // Handed to the default browser through the desktop handler rather than a
+  // hardcoded binary, and detached the way the rest of the shell launches
+  // things, so the browser does not stay a child of quickshell. The url is
+  // built from an int port and a host matched against the fixed set above,
+  // each passed as its own argv entry, so nothing from ss output reaches a
+  // shell.
+  function openInBrowser(p) {
+    if (p.proto !== "tcp") return
+    Quickshell.execDetached(["/usr/bin/xdg-open",
+                             "http://" + root.hostFor(p.address) + ":" + p.port])
+    root.close()
+  }
+
   function requestKill(p) {
     var key = keyFor(p)
     if (killProc.running) return
@@ -366,6 +391,7 @@ Item {
     errorKey: root.errorKey
     errorText: root.errorText
     onKillRequested: function(p) { root.requestKill(p) }
+    onOpenRequested: function(p) { root.openInBrowser(p) }
     onRefreshRequested: root.refresh()
   }
 

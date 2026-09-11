@@ -21,6 +21,7 @@ PopupWindow {
   property string errorText: ""
 
   signal killRequested(var p)
+  signal openRequested(var p)
   signal refreshRequested()
 
   readonly property var coordinatorKey: owner || root
@@ -269,8 +270,20 @@ PopupWindow {
     readonly property bool armed: root.armedKey === rowKey
     readonly property bool busy: root.busyKey === rowKey
     readonly property bool errored: root.errorKey === rowKey
+    // Only a TCP listener can be reached over http://.
+    readonly property bool openable: modelData.proto === "tcp"
 
     HoverHandler { id: rowHover }
+
+    // Declared before killBtn so the Kill button, which overlaps it, stays on
+    // top and keeps receiving its own clicks.
+    MouseArea {
+      anchors.fill: parent
+      hoverEnabled: true
+      enabled: rowDelegate.openable
+      cursorShape: Qt.PointingHandCursor
+      onClicked: root.openRequested(rowDelegate.modelData)
+    }
 
     Row {
       anchors.left: parent.left
@@ -294,13 +307,27 @@ PopupWindow {
         spacing: 1
         width: 260
 
-        Text {
-          text: ":" + modelData.port
-          textFormat: Text.PlainText
-          color: root.fg
-          font.family: root.fontFamily
-          font.pixelSize: 13
-          font.bold: true
+        Row {
+          spacing: 5
+
+          Text {
+            text: ":" + modelData.port
+            textFormat: Text.PlainText
+            color: root.fg
+            font.family: root.fontFamily
+            font.pixelSize: 13
+            font.bold: true
+          }
+
+          Text {
+            visible: rowDelegate.openable && rowHover.hovered
+            text: "󰖟 open"
+            textFormat: Text.PlainText
+            color: root.accent
+            font.family: root.fontFamily
+            font.pixelSize: 10
+            anchors.verticalCenter: parent.verticalCenter
+          }
         }
 
         // Process names, window classes and cmdlines are foreign text; the
