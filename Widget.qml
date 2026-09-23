@@ -16,12 +16,14 @@ Item {
   implicitWidth: vertical ? (bar ? bar.barSize : 26) : row.implicitWidth + 14
   implicitHeight: vertical ? row.implicitHeight + 10 : (bar ? bar.barSize : 26)
 
-  // Not every theme tunes bar.text for a light bar.background, so fall back
-  // to a fixed dark tone rather than trust it blindly.
-  function luminance(c) { return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b }
-  readonly property color iconColor: bar
-    ? (luminance(bar.background) > 0.6 ? "#1a1a1a" : bar.foreground)
-    : "white"
+  // barForeground is the color the bar already picked, including pure black
+  // when the wallpaper behind a transparent bar is light. bar.foreground
+  // stays the theme text color and never makes that switch.
+  readonly property color iconColor: {
+    if (!bar) return Color.foreground
+    var c = bar.barForeground
+    return (c && c.a > 0) ? c : bar.foreground
+  }
 
   property var ports: []
   // appPorts is only ever set from a real Hyprland window match (see isApp
