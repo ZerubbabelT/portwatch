@@ -33,18 +33,27 @@ PopupWindow {
   readonly property color urgent: Color.urgent
 
   function luminance(c) { return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b }
-  readonly property color fg: luminance(bg) > 0.6 ? "#1a1a1a" : Color.popups.text
-  readonly property color safeMuted: luminance(bg) > 0.6 ? "#5a5a5a" : Color.muted
+  // Some themes set muted to a surface gray, the same tone as the popup,
+  // and popup background-alpha lets the window behind show through.
+  // Black popup text gets a light plate. Light text gets a solid dark plate.
+  readonly property bool lightPlate: luminance(Color.popups.text) < 0.45
+  readonly property color cardBg: lightPlate ? "#F4F4F6" : "#1A1A1E"
+  readonly property color fg: lightPlate ? "#141416" : "#F4F4F8"
+  readonly property color secondary: lightPlate ? "#3A3A40" : "#D4D4DC"
+  readonly property color detailColor: lightPlate ? "#5A5A62" : "#B0B0B8"
+  readonly property color rowBg: lightPlate ? "#FFFFFF" : "#2A2A30"
+  readonly property color killBg: lightPlate ? "#E6E6EA" : "#3C3C44"
+  readonly property color onAccent: luminance(accent) > 0.45 ? "#141414" : "#F4F4F8"
   readonly property string fontFamily: bar ? bar.fontFamily : "monospace"
 
   readonly property int margin: 10
-  readonly property int cardPadding: 12
+  readonly property int cardPadding: 14
 
-  implicitWidth: 380
+  implicitWidth: 460
   implicitHeight: Math.min(460, Math.max(120, content.implicitHeight + cardPadding * 2))
 
   visible: open || card.opacity > 0
-  color: "transparent"
+  color: cardBg
 
   function close() { root.open = false }
 
@@ -105,9 +114,10 @@ PopupWindow {
     id: card
     anchors.fill: parent
     radius: 0
-    color: root.bg
-    border.color: root.borderColor
+    color: root.cardBg
+    border.color: root.accent
     border.width: 2
+    clip: true
     opacity: root.open ? 1 : 0
 
     Behavior on opacity {
@@ -129,7 +139,7 @@ PopupWindow {
           text: "Listening Ports"
           color: root.fg
           font.family: root.fontFamily
-          font.pixelSize: 14
+          font.pixelSize: 15
           font.bold: true
           width: parent.width - refreshBtn.width
           anchors.verticalCenter: parent.verticalCenter
@@ -163,9 +173,9 @@ PopupWindow {
       Text {
         visible: root.ownPorts.length === 0
         text: "Nothing you're running right now"
-        color: root.safeMuted
+        color: root.secondary
         font.family: root.fontFamily
-        font.pixelSize: 12
+        font.pixelSize: 13
       }
 
       Flickable {
@@ -180,7 +190,7 @@ PopupWindow {
         Column {
           id: listCol
           width: flick.width
-          spacing: 6
+          spacing: 8
 
           Repeater {
             model: root.ownPorts
@@ -235,17 +245,17 @@ PopupWindow {
 
       Text {
         text: toggle.expanded ? "▾" : "▸"
-        color: root.safeMuted
+        color: root.secondary
         font.family: root.fontFamily
-        font.pixelSize: 10
+        font.pixelSize: 12
         anchors.verticalCenter: parent.verticalCenter
       }
 
       Text {
         text: toggle.label + " (" + toggle.count + ")"
-        color: root.safeMuted
+        color: root.secondary
         font.family: root.fontFamily
-        font.pixelSize: 11
+        font.pixelSize: 12
         font.bold: true
         anchors.verticalCenter: parent.verticalCenter
       }
@@ -262,9 +272,9 @@ PopupWindow {
     id: rowDelegate
     required property var modelData
     readonly property bool hasDetail: modelData.detail !== ""
-    height: hasDetail ? 56 : 44
+    height: textCol.implicitHeight + 16
     radius: 8
-    color: rowHover.hovered ? Style.hoverFillFor(root.fg, root.accent, root.urgent) : "transparent"
+    color: rowHover.hovered ? root.killBg : root.rowBg
 
     readonly property string rowKey: modelData.proto + ":" + modelData.port + ":" + modelData.pid
     readonly property bool armed: root.armedKey === rowKey
@@ -300,32 +310,34 @@ PopupWindow {
         radius: 3
         anchors.top: parent.top
         anchors.topMargin: 4
-        color: modelData.proto === "tcp" ? root.accent : root.safeMuted
+        color: modelData.proto === "tcp" ? root.accent : root.secondary
       }
 
       Column {
-        spacing: 1
-        width: 260
+        id: textCol
+        spacing: 2
+        width: Math.max(0, parent.width - 22)
 
         Row {
-          spacing: 5
+          spacing: 6
 
           Text {
             text: ":" + modelData.port
             textFormat: Text.PlainText
             color: root.fg
             font.family: root.fontFamily
-            font.pixelSize: 13
+            font.pixelSize: 15
             font.bold: true
           }
 
           Text {
             visible: rowDelegate.openable && rowHover.hovered
-            text: "󰖟 open"
+            text: "open"
             textFormat: Text.PlainText
             color: root.accent
             font.family: root.fontFamily
-            font.pixelSize: 10
+            font.pixelSize: 12
+            font.bold: true
             anchors.verticalCenter: parent.verticalCenter
           }
         }
@@ -336,9 +348,9 @@ PopupWindow {
         Text {
           text: rowDelegate.errored ? root.errorText : modelData.label
           textFormat: Text.PlainText
-          color: rowDelegate.errored ? root.urgent : root.safeMuted
+          color: rowDelegate.errored ? root.accent : root.secondary
           font.family: root.fontFamily
-          font.pixelSize: 10
+          font.pixelSize: 12
           elide: Text.ElideRight
           width: parent.width
         }
@@ -347,10 +359,9 @@ PopupWindow {
           visible: rowDelegate.hasDetail
           text: modelData.detail
           textFormat: Text.PlainText
-          color: root.safeMuted
-          opacity: 0.7
+          color: root.detailColor
           font.family: root.fontFamily
-          font.pixelSize: 9
+          font.pixelSize: 12
           elide: Text.ElideMiddle
           width: parent.width
         }
@@ -362,21 +373,21 @@ PopupWindow {
       anchors.right: parent.right
       anchors.rightMargin: 6
       anchors.verticalCenter: parent.verticalCenter
-      width: killLabel.implicitWidth + 16
-      height: 24
+      width: Math.max(64, killLabel.implicitWidth + 18)
+      height: 26
       radius: 6
       visible: modelData.pid > 0
-      color: rowDelegate.armed
-        ? root.urgent
-        : Qt.rgba(root.urgent.r, root.urgent.g, root.urgent.b, killArea.containsMouse ? 0.25 : 0.12)
+      color: rowDelegate.armed ? root.accent : root.killBg
+      border.width: 1
+      border.color: rowDelegate.armed ? root.accent : root.fg
 
       Text {
         id: killLabel
         anchors.centerIn: parent
         text: rowDelegate.busy ? "…" : (rowDelegate.armed ? "Confirm" : "Kill")
-        color: rowDelegate.armed ? root.bg : root.urgent
+        color: rowDelegate.armed ? root.onAccent : root.fg
         font.family: root.fontFamily
-        font.pixelSize: 11
+        font.pixelSize: 12
         font.bold: true
       }
 
