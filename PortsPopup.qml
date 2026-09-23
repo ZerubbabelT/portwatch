@@ -47,7 +47,7 @@ PopupWindow {
   // hued colors keep their hue and walk lighter/darker, muted just fades the
   // foreground into the background instead.
   function readable(c, on) {
-    var up = relLum(on) < 0.5
+    var up = contrast(Qt.rgba(1, 1, 1, 1), on) > contrast(Qt.rgba(0, 0, 0, 1), on)
     for (var i = 0; i < 8 && contrast(c, on) < 4.5; i++)
       c = up ? Qt.lighter(c, 1.2) : Qt.darker(c, 1.2)
     return c
