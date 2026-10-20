@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Hyprland
 import qs.Commons
+import qs.Commons as Commons
 
 PopupWindow {
   id: root
@@ -26,8 +27,8 @@ PopupWindow {
 
   readonly property var coordinatorKey: owner || root
   readonly property var anchorWindow: anchorItem ? anchorItem.QsWindow.window : null
-  readonly property color bg: Color.popups.background
-  readonly property color borderColor: Color.popups.border
+  readonly property color bg: Commons.Color.popups.background
+  readonly property color borderColor: Commons.Color.popups.border
 
   // WCAG relative luminance, not the 0.299/0.587/0.114 approximation: the
   // themes this has to survive differ mostly in the dark end, where the two
@@ -53,11 +54,11 @@ PopupWindow {
     return c
   }
 
-  readonly property color fg: readable(Color.popups.text, bg)
-  readonly property color accent: readable(Color.accent, bg)
-  readonly property color urgent: readable(Color.urgent, bg)
-  readonly property color safeMuted: contrast(Color.muted, bg) >= 4.5
-    ? Color.muted
+  readonly property color fg: readable(Commons.Color.popups.text, bg)
+  readonly property color accent: readable(Commons.Color.accent, bg)
+  readonly property color urgent: readable(Commons.Color.urgent, bg)
+  readonly property color safeMuted: contrast(Commons.Color.muted, bg) >= 4.5
+    ? Commons.Color.muted
     : Qt.tint(bg, Qt.rgba(fg.r, fg.g, fg.b, 0.7))
   readonly property string fontFamily: bar ? bar.fontFamily : "monospace"
 
