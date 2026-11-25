@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Hyprland
 import qs.Commons
 import qs.Commons as Commons
+import qs.Ui
 
 PopupWindow {
   id: root
@@ -29,6 +30,7 @@ PopupWindow {
   readonly property var anchorWindow: anchorItem ? anchorItem.QsWindow.window : null
   readonly property color bg: Commons.Color.popups.background
   readonly property color borderColor: Commons.Color.popups.border
+  readonly property var borderSpec: Border.localOrSurfaceSpec("popups", "border", borderColor, Commons.Color.popups.border, Math.max(1, Style.space(2)))
 
   // WCAG relative luminance, not the 0.299/0.587/0.114 approximation: the
   // themes this has to survive differ mostly in the dark end, where the two
@@ -66,7 +68,7 @@ PopupWindow {
   readonly property int cardPadding: 12
 
   implicitWidth: 380
-  implicitHeight: Math.min(460, Math.max(120, content.implicitHeight + cardPadding * 2))
+  implicitHeight: Math.min(460, Math.max(120, content.implicitHeight + card.contentTopInset + card.contentBottomInset))
 
   visible: open || card.opacity > 0
   color: "transparent"
@@ -126,13 +128,13 @@ PopupWindow {
     }
   }
 
-  Rectangle {
+  BorderSurface {
     id: card
     anchors.fill: parent
-    radius: 0
+    radius: Style.cornerRadius
     color: root.bg
-    border.color: root.borderColor
-    border.width: 2
+    borderSpec: root.borderSpec
+    padding: root.cardPadding
     opacity: root.open ? 1 : 0
 
     Behavior on opacity {
@@ -142,7 +144,10 @@ PopupWindow {
     Column {
       id: content
       anchors.fill: parent
-      anchors.margins: root.cardPadding
+      anchors.topMargin: card.contentTopInset
+      anchors.rightMargin: card.contentRightInset
+      anchors.bottomMargin: card.contentBottomInset
+      anchors.leftMargin: card.contentLeftInset
       spacing: 8
 
       Row {
@@ -320,6 +325,7 @@ PopupWindow {
       spacing: 8
 
       Rectangle {
+        id: protoDot
         width: 6
         height: 6
         radius: 3
@@ -330,7 +336,7 @@ PopupWindow {
 
       Column {
         spacing: 1
-        width: 260
+        width: parent.width - protoDot.width - parent.spacing
 
         Row {
           spacing: 5
