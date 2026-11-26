@@ -1,6 +1,9 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.Commons
+import qs.Commons as Commons
+import qs.Ui
 
 Item {
   id: root
@@ -13,13 +16,14 @@ Item {
   // of implicitWidth, so the cross-axis must follow bar.vertical the same
   // way BarIconButton's fixedWidth/fixedHeight do, or content gets clipped.
   readonly property bool vertical: bar ? bar.vertical : false
-  implicitWidth: vertical ? (bar ? bar.barSize : 26) : row.implicitWidth + 14
-  implicitHeight: vertical ? row.implicitHeight + 10 : (bar ? bar.barSize : 26)
+  implicitWidth: vertical ? (bar ? bar.barSize : 26) : icon.implicitWidth + 14
+  implicitHeight: vertical ? icon.implicitHeight + 10 : (bar ? bar.barSize : 26)
 
   // bar.barForeground, not bar.foreground: on a transparent bar the shell
   // samples the wallpaper behind the bar and flips every icon to the
   // contrasting tone, and bar.foreground never sees that flip.
   readonly property color iconColor: bar ? bar.barForeground : "white"
+  readonly property bool tooltipHovered: hoverArea.containsMouse
 
   property var ports: []
   // appPorts is only ever set from a real Hyprland window match (see isApp
@@ -350,30 +354,37 @@ Item {
     onTriggered: root.refresh()
   }
 
-  Grid {
-    id: row
+  Text {
+    id: icon
     anchors.centerIn: parent
-    columns: root.vertical ? 1 : 2
-    rowSpacing: 2
-    columnSpacing: 4
+    text: ""
+    color: root.iconColor
+    font.family: bar ? bar.fontFamily : "monospace"
+    font.pixelSize: 14
+  }
 
-    Text {
-      text: ""
-      color: root.iconColor
-      font.family: bar ? bar.fontFamily : "monospace"
-      font.pixelSize: 14
-      horizontalAlignment: Text.AlignHCenter
-    }
+  BorderSurface {
+    visible: root.ownPorts.length > 0
+    x: Math.round(icon.x + icon.width - width / 2)
+    y: Math.round(icon.y + 3 - height / 2)
+    width: 8
+    height: 8
+    radius: width / 2
+    color: Commons.Color.accent
+    borderSpec: Border.flat(Commons.Color.bar.background, 1)
+  }
 
-    Text {
-      visible: root.ownPorts.length > 0
-      text: String(root.ownPorts.length)
-      color: root.iconColor
-      font.family: bar ? bar.fontFamily : "monospace"
-      font.pixelSize: 11
-      font.bold: true
-      horizontalAlignment: Text.AlignHCenter
+  MouseArea {
+    id: hoverArea
+    anchors.fill: parent
+    hoverEnabled: true
+    acceptedButtons: Qt.NoButton
+    onEntered: {
+      if (!root.bar) return
+      var n = root.ownPorts.length
+      root.bar.showTooltip(root, n === 0 ? "No listening ports" : n === 1 ? "1 listening port" : n + " listening ports")
     }
+    onExited: if (root.bar) root.bar.hideTooltip(root)
   }
 
   PortsPopup {
