@@ -363,22 +363,28 @@ Item {
   }
 
   BorderSurface {
+    id: badge
     visible: root.ownPorts.length > 0
-    anchors.horizontalCenter: icon.right
-    anchors.verticalCenter: icon.top
-    anchors.horizontalCenterOffset: 2
-    anchors.verticalCenterOffset: 3
-    width: Math.max(height, count.implicitWidth + 6)
-    height: 12
+    // Whole-pixel geometry with an odd interior keeps the natively rendered
+    // digit's ink exactly centred instead of half a pixel off. Tight bounds
+    // come back in whole pixels, so measure 100x larger, as OpticalGlyph does.
+    readonly property rect ink: Qt.rect(countMetrics.tightBoundingRect.x / 100,
+      countMetrics.tightBoundingRect.y / 100,
+      countMetrics.tightBoundingRect.width / 100,
+      countMetrics.tightBoundingRect.height / 100)
+    readonly property int inkWidth: Math.ceil(ink.width)
+    x: Math.round(icon.x + icon.width + 2 - width / 2)
+    y: Math.round(icon.y + 3 - height / 2)
+    height: 11
+    width: Math.max(height, inkWidth + 6)
     radius: height / 2
     color: Commons.Color.accent
     borderSpec: Border.flat(Commons.Color.bar.background, 1)
 
     Text {
       id: count
-      x: Math.round((parent.width - width) / 2)
-      y: (parent.height - height) / 2
-        + (countMetrics.descent - countMetrics.ascent + countMetrics.tightBoundingRect("0").height) / 2
+      x: Math.round((badge.width - badge.ink.width) / 2 - badge.ink.x)
+      y: Math.round((badge.height - badge.ink.height) / 2 - baselineOffset - badge.ink.y)
       text: root.ownPorts.length > 99 ? "99+" : String(root.ownPorts.length)
       color: Commons.Color.background
       font.family: "monospace"
@@ -387,9 +393,12 @@ Item {
       renderType: Text.NativeRendering
     }
 
-    FontMetrics {
+    TextMetrics {
       id: countMetrics
-      font: count.font
+      font.family: count.font.family
+      font.bold: true
+      font.pixelSize: count.font.pixelSize * 100
+      text: count.text
     }
   }
 
