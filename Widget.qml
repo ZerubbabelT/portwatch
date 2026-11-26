@@ -23,6 +23,7 @@ Item {
   // samples the wallpaper behind the bar and flips every icon to the
   // contrasting tone, and bar.foreground never sees that flip.
   readonly property color iconColor: bar ? bar.barForeground : "white"
+  readonly property bool tooltipHovered: hoverArea.containsMouse
 
   property var ports: []
   // appPorts is only ever set from a real Hyprland window match (see isApp
@@ -363,43 +364,27 @@ Item {
   }
 
   BorderSurface {
-    id: badge
     visible: root.ownPorts.length > 0
-    // Whole-pixel geometry with an odd interior keeps the natively rendered
-    // digit's ink exactly centred instead of half a pixel off. Tight bounds
-    // come back in whole pixels, so measure 100x larger, as OpticalGlyph does.
-    readonly property rect ink: Qt.rect(countMetrics.tightBoundingRect.x / 100,
-      countMetrics.tightBoundingRect.y / 100,
-      countMetrics.tightBoundingRect.width / 100,
-      countMetrics.tightBoundingRect.height / 100)
-    readonly property int inkWidth: Math.ceil(ink.width)
-    x: Math.round(icon.x + icon.width + 2 - width / 2)
+    x: Math.round(icon.x + icon.width - width / 2)
     y: Math.round(icon.y + 3 - height / 2)
-    height: 11
-    width: Math.max(height, inkWidth + 6)
-    radius: height / 2
+    width: 8
+    height: 8
+    radius: width / 2
     color: Commons.Color.accent
     borderSpec: Border.flat(Commons.Color.bar.background, 1)
+  }
 
-    Text {
-      id: count
-      x: Math.round((badge.width - badge.ink.width) / 2 - badge.ink.x)
-      y: Math.round((badge.height - badge.ink.height) / 2 - baselineOffset - badge.ink.y)
-      text: root.ownPorts.length > 99 ? "99+" : String(root.ownPorts.length)
-      color: Commons.Color.background
-      font.family: "monospace"
-      font.pixelSize: 9
-      font.bold: true
-      renderType: Text.NativeRendering
+  MouseArea {
+    id: hoverArea
+    anchors.fill: parent
+    hoverEnabled: true
+    acceptedButtons: Qt.NoButton
+    onEntered: {
+      if (!root.bar) return
+      var n = root.ownPorts.length
+      root.bar.showTooltip(root, n === 0 ? "No listening ports" : n === 1 ? "1 listening port" : n + " listening ports")
     }
-
-    TextMetrics {
-      id: countMetrics
-      font.family: count.font.family
-      font.bold: true
-      font.pixelSize: count.font.pixelSize * 100
-      text: count.text
-    }
+    onExited: if (root.bar) root.bar.hideTooltip(root)
   }
 
   PortsPopup {
