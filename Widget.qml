@@ -366,21 +366,30 @@ Item {
     visible: root.ownPorts.length > 0
     anchors.horizontalCenter: icon.right
     anchors.verticalCenter: icon.top
-    anchors.verticalCenterOffset: 4
-    width: Math.max(height, count.implicitWidth + 4)
-    height: 9
+    anchors.horizontalCenterOffset: 2
+    anchors.verticalCenterOffset: 3
+    width: Math.max(height, count.implicitWidth + 6)
+    height: 12
     radius: height / 2
     color: Commons.Color.accent
     borderSpec: Border.flat(Commons.Color.bar.background, 1)
 
     Text {
       id: count
-      anchors.centerIn: parent
+      x: Math.round((parent.width - width) / 2)
+      y: (parent.height - height) / 2
+        + (countMetrics.descent - countMetrics.ascent + countMetrics.tightBoundingRect("0").height) / 2
       text: root.ownPorts.length > 99 ? "99+" : String(root.ownPorts.length)
       color: Commons.Color.background
-      font.family: bar ? bar.fontFamily : "monospace"
-      font.pixelSize: 7
+      font.family: "monospace"
+      font.pixelSize: 9
       font.bold: true
+      renderType: Text.NativeRendering
+    }
+
+    FontMetrics {
+      id: countMetrics
+      font: count.font
     }
   }
 
