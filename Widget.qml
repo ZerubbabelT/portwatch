@@ -1,6 +1,9 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.Commons
+import qs.Commons as Commons
+import qs.Ui
 
 Item {
   id: root
@@ -13,8 +16,8 @@ Item {
   // of implicitWidth, so the cross-axis must follow bar.vertical the same
   // way BarIconButton's fixedWidth/fixedHeight do, or content gets clipped.
   readonly property bool vertical: bar ? bar.vertical : false
-  implicitWidth: vertical ? (bar ? bar.barSize : 26) : row.implicitWidth + 14
-  implicitHeight: vertical ? row.implicitHeight + 10 : (bar ? bar.barSize : 26)
+  implicitWidth: vertical ? (bar ? bar.barSize : 26) : icon.implicitWidth + 14
+  implicitHeight: vertical ? icon.implicitHeight + 10 : (bar ? bar.barSize : 26)
 
   // bar.barForeground, not bar.foreground: on a transparent bar the shell
   // samples the wallpaper behind the bar and flips every icon to the
@@ -350,29 +353,34 @@ Item {
     onTriggered: root.refresh()
   }
 
-  Grid {
-    id: row
+  Text {
+    id: icon
     anchors.centerIn: parent
-    columns: root.vertical ? 1 : 2
-    rowSpacing: 2
-    columnSpacing: 4
+    text: ""
+    color: root.iconColor
+    font.family: bar ? bar.fontFamily : "monospace"
+    font.pixelSize: 14
+  }
+
+  BorderSurface {
+    visible: root.ownPorts.length > 0
+    anchors.horizontalCenter: icon.right
+    anchors.verticalCenter: icon.top
+    anchors.verticalCenterOffset: 4
+    width: Math.max(height, count.implicitWidth + 4)
+    height: 9
+    radius: height / 2
+    color: Commons.Color.accent
+    borderSpec: Border.flat(Commons.Color.bar.background, 1)
 
     Text {
-      text: ""
-      color: root.iconColor
+      id: count
+      anchors.centerIn: parent
+      text: root.ownPorts.length > 99 ? "99+" : String(root.ownPorts.length)
+      color: Commons.Color.background
       font.family: bar ? bar.fontFamily : "monospace"
-      font.pixelSize: 14
-      horizontalAlignment: Text.AlignHCenter
-    }
-
-    Text {
-      visible: root.ownPorts.length > 0
-      text: String(root.ownPorts.length)
-      color: root.iconColor
-      font.family: bar ? bar.fontFamily : "monospace"
-      font.pixelSize: 11
+      font.pixelSize: 7
       font.bold: true
-      horizontalAlignment: Text.AlignHCenter
     }
   }
 
